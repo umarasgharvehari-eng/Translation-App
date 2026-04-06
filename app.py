@@ -1,12 +1,12 @@
 import streamlit as st
-from groq import Groq
+from openai import OpenAI
 
 st.set_page_config(page_title="Translator", page_icon="🌍")
 
 # Get API key from Streamlit secrets
 api_key = st.secrets["Translation"]
 
-client = Groq(api_key=api_key)
+client = OpenAI(api_key=api_key)
 
 SUPPORTED_LANGUAGES = [
     "English",
@@ -18,7 +18,7 @@ SUPPORTED_LANGUAGES = [
     "German"
 ]
 
-MODEL = "llama-3.3-70b-versatile"
+MODEL = "gpt-4o-mini"   # cheap + fast
 
 
 def translate(text, source, target):
@@ -46,7 +46,7 @@ Text:
 
 # UI
 st.title("🌍 English ↔ Urdu Translator")
-st.write("Powered by Groq + Streamlit")
+st.write("Powered by OpenAI + Streamlit")
 
 col1, col2 = st.columns(2)
 
