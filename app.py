@@ -1,13 +1,25 @@
 import streamlit as st
-from openai import OpenAI
+from openai import OpenAI, RateLimitError, AuthenticationError, APIError
 
-st.set_page_config(page_title="Translator", page_icon="🌍")
+# Page config
+st.set_page_config(page_title="AI Translator", page_icon="🌍", layout="wide")
 
-# Get API key from Streamlit secrets
-api_key = st.secrets["Translation"]
+# Initialize OpenAI client using Streamlit secrets
+def get_client():
+    if "Translation" not in st.secrets:
+        st.error("Missing secret: 'Translation'. Please add your OpenAI API key in Streamlit secrets.")
+        st.stop()
 
-client = OpenAI(api_key=api_key)
+    api_key = st.secrets["Translation"]
 
+    if not api_key or not str(api_key).strip():
+        st.error("API key is empty. Please check your Streamlit secrets.")
+        st.stop()
+
+    return OpenAI(api_key=api_key)
+
+
+# Supported languages
 SUPPORTED_LANGUAGES = [
     "English",
     "Urdu",
@@ -15,19 +27,23 @@ SUPPORTED_LANGUAGES = [
     "Hindi",
     "French",
     "Spanish",
-    "German"
+    "German",
 ]
 
-MODEL = "gpt-4o-mini"   # cheap + fast
+MODEL = "gpt-4o-mini"
 
 
-def translate(text, source, target):
+# Translation function
+def translate_text(text, source_language, target_language):
+    client = get_client()
+
     prompt = f"""
-Translate the following text from {source} to {target}.
+Translate the following text from {source_language} to {target_language}.
 
 Rules:
-- Only return translated text
-- No explanation
+- Return only the translated text
+- Do not explain anything
+- Preserve meaning and tone
 
 Text:
 {text}
@@ -39,29 +55,54 @@ Text:
             {"role": "user", "content": prompt}
         ],
         temperature=0.2,
+        max_tokens=300,
     )
 
     return response.choices[0].message.content.strip()
 
 
 # UI
-st.title("🌍 English ↔ Urdu Translator")
-st.write("Powered by OpenAI + Streamlit")
+st.title("🌍 Multilingual Translator")
+st.caption("Powered by OpenAI + Streamlit")
 
 col1, col2 = st.columns(2)
 
 with col1:
-    source_lang = st.selectbox("Source", SUPPORTED_LANGUAGES)
-    input_text = st.text_area("Enter text")
+    st.subheader("Input")
+    source_language = st.selectbox("Source Language", SUPPORTED_LANGUAGES, index=0)
+    input_text = st.text_area("Enter text to translate", height=250)
 
 with col2:
-    target_lang = st.selectbox("Target", SUPPORTED_LANGUAGES, index=1)
-    output_text = st.empty()
+    st.subheader("Output")
+    target_language = st.selectbox("Target Language", SUPPORTED_LANGUAGES, index=1)
+    output_box = st.empty()
 
-if st.button("Translate"):
-    if input_text.strip() == "":
-        st.warning("Enter text first")
+
+# Translate button
+if st.button("Translate", type="primary", use_container_width=True):
+    if not input_text.strip():
+        st.warning("Please enter some text to translate.")
+    elif source_language == target_language:
+        st.warning("Source and target languages must be different.")
     else:
-        with st.spinner("Translating..."):
-            result = translate(input_text, source_lang, target_lang)
-            output_text.success(result)
+        try:
+            with st.spinner("Translating..."):
+                result = translate_text(input_text, source_language, target_language)
+
+            output_box.success(result)
+
+        except RateLimitError:
+            st.error(
+                "Rate limit or quota exceeded. Please check your OpenAI billing and usage limits."
+            )
+
+        except AuthenticationError:
+            st.error(
+                "Invalid API key. Please check your Streamlit secret 'Translation'."
+            )
+
+        except APIError as e:
+            st.error(f"OpenAI API error: {e}")
+
+        except Exception as e:
+            st.error(f"Unexpected error: {e}")
